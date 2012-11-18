@@ -122,7 +122,7 @@ func (s *SourceContext) find_file(l SourceLoc) *SourceFile {
 // read anything, all the arguments are purely informative.
 func (s *SourceContext) AddFile(filename string, length int) *SourceFile {
 	if len(s.files) != 0 && s.last_file().length == -1 {
-		panic("sexp: last file in the SourceContext was not finalized")
+		panic("SourceContext: last file was not finalized")
 	}
 
 	offset := SourceLoc(0)
@@ -144,7 +144,7 @@ func (s *SourceContext) AddFile(filename string, length int) *SourceFile {
 // Decodes an encoded source location.
 func (s *SourceContext) Decode(loc SourceLoc) SourceLocEx {
 	if len(s.files) == 0 {
-		panic("sexp: decoding SourceLoc in a wrong SourceContext")
+		panic("SourceContext: decoding location that doesn't belong here")
 	}
 
 	file := s.find_file(loc)

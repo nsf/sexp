@@ -75,13 +75,24 @@ func (p *parser) skip_spaces() {
 	panic("unreachable")
 }
 
-func (p *parser) skip_to_next_line() {
+func (p *parser) skip_spaces_expect_eof() {
+	for {
+		if is_space(p.cur) {
+			p.next_expect_eof()
+		} else {
+			return
+		}
+	}
+	panic("unreachable")
+}
+
+func (p *parser) skip_comment() {
 	for {
 		// read until '\n'
 		if p.cur != '\n' {
-			p.next()
+			p.next_expect_eof()
 		} else {
-			p.next()
+			p.next_expect_eof()
 			return
 		}
 	}
@@ -100,8 +111,8 @@ again:
 		return p.parse_raw_string()
 	case ';':
 		// skip comment
-		p.skip_to_next_line()
-		p.skip_spaces()
+		p.skip_comment()
+		p.skip_spaces_expect_eof()
 		goto again
 	case 0:
 		// delayed expected EOF
@@ -115,7 +126,7 @@ again:
 func (p *parser) parse_list() *Node {
 	loc := p.f.Encode(p.offset)
 
-	var head *Node
+	head := &Node{Location: loc}
 	p.next() // skip opening '('
 
 	var lastchild *Node
@@ -124,28 +135,10 @@ func (p *parser) parse_list() *Node {
 		if p.cur == ')' {
 			// skip enclosing ')', but it could be EOF also
 			p.next_expect_eof()
-			if head == nil {
-				// empty list case
-				head = &Node{Location: loc}
-			}
 			return head
 		}
 
 		node := p.parse_node()
-		if head == nil {
-			if node.IsScalar() {
-				// if the first element is not a list, use it
-				// as a list head
-				head = node
-				continue
-			} else {
-				// otherwise create an empty list head and
-				// proceed to children processing part
-				head = &Node{Location: loc}
-			}
-		}
-
-		// we get there starting from second list element
 		if head.Children == nil {
 			head.Children = node
 		} else {
@@ -240,6 +233,7 @@ func (p *parser) parse() (root *Node, err error) {
 			if sexperr, ok := e.(*Error); ok {
 				root = nil
 				err = sexperr
+				return
 			}
 			panic(e)
 		}
@@ -251,7 +245,7 @@ func (p *parser) parse() (root *Node, err error) {
 	// don't worry, will eventually panic with io.EOF :D
 	var lastchild *Node
 	for {
-		p.skip_spaces()
+		p.skip_spaces_expect_eof()
 		node := p.parse_node()
 		if root.Children == nil {
 			root.Children = node

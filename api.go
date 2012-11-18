@@ -8,31 +8,21 @@ import (
 // The main and only AST structure. All fields are self explanatory, however
 // the way they are being formed needs explanation.
 //
-// The root node typically has empty value and non-nil children pointer, which
-// is a list of all the nodes in the AST.
+// A list node has empty value and non-nil children pointer, which is a
+// nil-terminated list of children nodes.
 //
-// Other list nodes are formed depending on the head type, if head is a list itself,
-// then an AST node with an empty value is created as a proxy, otherwise the head
-// itself not only contains a valid value, but also contains a non-nil children
-// pointer. It's easier to show that as an example:
+// A scalar node has nil children pointer.
 //
-//   (1 2 3)
-//
-// will yield:
-//
-//   Node{Value: "1", Children:
-//     Node{Value: "2", Next:
-//     Node{Value: "3"}}}
-//
-// However:
+// Take a look at this example:
 //
 //   ((1 2) 3 4)
 //
 // will yield:
 //
-//   Node{Value: "", Children:
-//     Node{Value: "1", Children:
-//       Node{Value: "2"}, Next:
+//   Node{Children:
+//     Node{Children:
+//       Node{Value: "1", Next:
+//       Node{Value: "2"}}, Next:
 //     Node{Value: "3", Next:
 //     Node{Value: "4"}}}}
 type Node struct {
