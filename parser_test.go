@@ -3,6 +3,7 @@ package sexp
 import (
 	"testing"
 	"strings"
+	"regexp"
 	"fmt"
 )
 
@@ -63,7 +64,10 @@ var config = `
      tree_row_reference_deleted
      tree_row_reference_inserted
   ))
-)`[1:]
+) ; testing a comment at the end of file`[1:]
+
+var empty = `
+; empty file with a comment!`[1:]
 
 func print_ast(n *Node, indent int) {
 	for i := 0; i < indent; i++ {
@@ -84,13 +88,31 @@ func print_ast(n *Node, indent int) {
 func test_file(ctx *SourceContext, name, content string, t *testing.T) {
 	root, err := Parse(strings.NewReader(content), name, -1, ctx)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return
 	}
 
+	_ = root
+	/*
 	root = root.Children
 	for root != nil {
 		print_ast(root, 0)
 		root = root.Next
+	}
+	*/
+}
+
+func test_value(source, result string, t *testing.T) {
+	var ctx SourceContext
+	root, err := Parse(strings.NewReader(source), "", -1, &ctx)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	val := root.Children.Value
+	if val != result {
+		t.Errorf("got: %q, expected: %q", val, result)
 	}
 }
 
@@ -98,13 +120,38 @@ func TestParser(t *testing.T) {
 	var ctx SourceContext
 	test_file(&ctx, "palindrome.scm", palindrome, t)
 	test_file(&ctx, "config.sexp", config, t)
-	lengths := [][2]int{
-		{ctx.files[0].length, len(palindrome)},
-		{ctx.files[1].length, len(config)},
+	test_file(&ctx, "empty.sexp", empty, t)
+
+	test_value(`"\n"`, "\n", t)
+	test_value(`"\xFF"`, "\xFF", t)
+	test_value(`"\u1234\r"`, "\u1234\r", t)
+	test_value(`"\U00101234\t\t"`, "\U00101234\t\t", t)
+}
+
+func TestParserErrors(t *testing.T) {
+	var ctx SourceContext
+	test := func(source string) error {
+		_, err := Parse(strings.NewReader(source), "test.txt", -1, &ctx)
+		return err
 	}
-	for _, l := range lengths {
-		if l[0] != l[1] {
-			t.Errorf("lengths should match, got: %d != %d", l[0], l[1])
+	must_contain := func(err error, what string) {
+		if err == nil {
+			t.Errorf("non-nil error expected")
+			return
+		}
+		re := regexp.MustCompile(what)
+		if !re.MatchString(err.Error()) {
+			t.Errorf(`expected: "%s", got: "%s"`, what, err)
+		} else {
+			t.Logf(`ok: %s`, err)
 		}
 	}
+
+	must_contain(test(`(1 2 3`), `missing.+\)`)
+	must_contain(test(`"1 2 3`), `missing.+"`)
+	must_contain(test("`1 2 3"), "missing.+`")
+	must_contain(test("(`1 2 3`"), `missing.+\)`)
+	must_contain(test("\"1 2 3\n\""), `newline is not allowed`)
+	must_contain(test(`"\z"`), `unrecognized escape sequence`)
+	must_contain(test(`"\x5J"`), `is not a hex digit`)
 }

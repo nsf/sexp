@@ -5,7 +5,14 @@ import (
 	"fmt"
 	"bufio"
 	"bytes"
+	"strconv"
 )
+
+var seq_delims = map[rune]rune{
+	'(': ')',
+	'`': '`',
+	'"': '"',
+}
 
 func new_error(location SourceLoc, format string, args ...interface{}) *Error {
 	return &Error{
@@ -14,12 +21,34 @@ func new_error(location SourceLoc, format string, args ...interface{}) *Error {
 	}
 }
 
+func panic_if_error(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func is_hex(r rune) bool {
+	return (r >= '0' && r <= '9') ||
+		(r >= 'a' && r <= 'f') ||
+		(r >= 'A' && r <= 'F')
+}
+
 func is_space(r rune) bool {
 	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }
 
 func is_delimiter(r rune) bool {
-	return is_space(r) || r == ')'
+	return is_space(r) || r == ')' || r == 0
+}
+
+type seq struct {
+	offset int
+	rune rune
+}
+
+type delim_state struct {
+	last_seq seq
+	expect_eof bool
 }
 
 type parser struct {
@@ -29,32 +58,40 @@ type parser struct {
 	line int
 	offset int
 	cur rune
+	delim_state
+}
+
+func (p *parser) advance_delim_state() delim_state {
+	s := p.delim_state
+	p.last_seq = seq{p.offset, p.cur}
+	p.expect_eof = false
+	return s
+}
+
+func (p *parser) restore_delim_state(s delim_state) {
+	p.delim_state = s
+}
+
+func (p *parser) error(loc SourceLoc, format string, args ...interface{}) {
+	panic(&Error{
+		Location: loc,
+		message: fmt.Sprintf(format, args...),
+	})
 }
 
 func (p *parser) next() {
 	r, s, err := p.r.ReadRune()
 	if err != nil {
 		if err == io.EOF {
-			panic(new_error(p.f.Encode(p.offset),
-				"unexpected EOF"))
+			if p.expect_eof {
+				p.cur = 0
+				return
+			}
+			p.error(p.f.Encode(p.last_seq.offset),
+				"missing matching sequence '%c' delimiter",
+				seq_delims[p.last_seq.rune])
 		}
 		panic(err)
-	}
-
-	p.offset += s
-	if r == '\n' {
-		p.f.AddLine(p.offset)
-	}
-	p.cur = r
-}
-
-func (p *parser) next_expect_eof() {
-	r, s, err := p.r.ReadRune()
-	if err != nil {
-		if err != io.EOF {
-			panic(err)
-		}
-		r, s = 0, 0
 	}
 
 	p.offset += s
@@ -75,24 +112,19 @@ func (p *parser) skip_spaces() {
 	panic("unreachable")
 }
 
-func (p *parser) skip_spaces_expect_eof() {
-	for {
-		if is_space(p.cur) {
-			p.next_expect_eof()
-		} else {
-			return
-		}
-	}
-	panic("unreachable")
-}
-
 func (p *parser) skip_comment() {
 	for {
+		// there was an EOF, return
+		if p.cur == 0 {
+			return
+		}
+
 		// read until '\n'
 		if p.cur != '\n' {
-			p.next_expect_eof()
+			p.next()
 		} else {
-			p.next_expect_eof()
+			// skip '\n' and return
+			p.next()
 			return
 		}
 	}
@@ -112,7 +144,7 @@ again:
 	case ';':
 		// skip comment
 		p.skip_comment()
-		p.skip_spaces_expect_eof()
+		p.skip_spaces()
 		goto again
 	case 0:
 		// delayed expected EOF
@@ -125,6 +157,7 @@ again:
 
 func (p *parser) parse_list() *Node {
 	loc := p.f.Encode(p.offset)
+	save := p.advance_delim_state()
 
 	head := &Node{Location: loc}
 	p.next() // skip opening '('
@@ -134,7 +167,8 @@ func (p *parser) parse_list() *Node {
 		p.skip_spaces()
 		if p.cur == ')' {
 			// skip enclosing ')', but it could be EOF also
-			p.next_expect_eof()
+			p.restore_delim_state(save)
+			p.next()
 			return head
 		}
 
@@ -149,32 +183,105 @@ func (p *parser) parse_list() *Node {
 	panic("unreachable")
 }
 
+func (p *parser) parse_esc_seq() {
+	loc := p.f.Encode(p.offset)
+
+	p.next() // skip '\\'
+	switch p.cur {
+	case 'a':
+		p.next()
+		p.buf.WriteByte('\a')
+	case 'b':
+		p.next()
+		p.buf.WriteByte('\b')
+	case 'f':
+		p.next()
+		p.buf.WriteByte('\f')
+	case 'n':
+		p.next()
+		p.buf.WriteByte('\n')
+	case 'r':
+		p.next()
+		p.buf.WriteByte('\r')
+	case 't':
+		p.next()
+		p.buf.WriteByte('\t')
+	case 'v':
+		p.next()
+		p.buf.WriteByte('\v')
+	case '\\':
+		p.next()
+		p.buf.WriteByte('\\')
+	case '"':
+		p.next()
+		p.buf.WriteByte('"')
+	default:
+		switch p.cur {
+		case 'x':
+			p.next() // skip 'x'
+			p.parse_hex_rune(2)
+		case 'u':
+			p.next() // skip 'u'
+			p.parse_hex_rune(4)
+		case 'U':
+			p.next() // skip 'U'
+			p.parse_hex_rune(8)
+		default:
+			p.error(loc, `unrecognized escape sequence within '"' string`)
+		}
+	}
+}
+
+func (p *parser) parse_hex_rune(n int) {
+	if n > 8 {
+		panic("hex rune is too large")
+	}
+
+	var hex [8]byte
+	p.next_hex(hex[:n])
+	r, err := strconv.ParseUint(string(hex[:n]), 16, n*4) // 4 bits per hex digit
+	panic_if_error(err)
+	if n == 2 {
+		p.buf.WriteByte(byte(r))
+	} else {
+		p.buf.WriteRune(rune(r))
+	}
+}
+
+func (p *parser) next_hex(s []byte) {
+	for i, n := 0, len(s); i < n; i++ {
+		if !is_hex(p.cur) {
+			loc := p.f.Encode(p.offset)
+			p.error(loc, `'%c' is not a hex digit`, p.cur)
+		}
+		s[i] = byte(p.cur)
+		p.next()
+	}
+}
+
 func (p *parser) parse_string() *Node {
 	loc := p.f.Encode(p.offset)
-	prev := p.cur
+	save := p.advance_delim_state()
 
 	p.next() // skip opening '"'
-	p.buf.WriteByte('"')
 	for {
 		switch p.cur {
 		case '\n':
-			panic(new_error(loc,
-				"newline is not allowed within \"\" strings"))
+			p.error(loc, `newline is not allowed within '"' strings`)
+		case '\\':
+			p.parse_esc_seq()
 		case '"':
-			if prev != '\\' {
-				p.buf.WriteByte('"')
-				node := &Node{
-					Location: loc,
-					Value: p.buf.String(),
-				}
-				p.buf.Reset()
-				// consume enclosing '"', could be EOF
-				p.next_expect_eof()
-				return node
+			node := &Node{
+				Location: loc,
+				Value: p.buf.String(),
 			}
-			fallthrough
+			p.buf.Reset()
+
+			// consume enclosing '"', could be EOF
+			p.restore_delim_state(save)
+			p.next()
+			return node
 		default:
-			prev = p.cur
 			p.buf.WriteRune(p.cur)
 			p.next()
 		}
@@ -184,18 +291,19 @@ func (p *parser) parse_string() *Node {
 
 func (p *parser) parse_raw_string() *Node {
 	loc := p.f.Encode(p.offset)
+	save := p.advance_delim_state()
+
 	p.next() // skip opening '`'
-	p.buf.WriteByte('`')
 	for {
 		if p.cur == '`' {
-			p.buf.WriteByte('`')
 			node := &Node{
 				Location: loc,
 				Value: p.buf.String(),
 			}
 			p.buf.Reset()
 			// consume enclosing '`', could be EOF
-			p.next_expect_eof()
+			p.restore_delim_state(save)
+			p.next()
 			return node
 		} else {
 			p.buf.WriteRune(p.cur)
@@ -245,7 +353,7 @@ func (p *parser) parse() (root *Node, err error) {
 	// don't worry, will eventually panic with io.EOF :D
 	var lastchild *Node
 	for {
-		p.skip_spaces_expect_eof()
+		p.skip_spaces()
 		node := p.parse_node()
 		if root.Children == nil {
 			root.Children = node

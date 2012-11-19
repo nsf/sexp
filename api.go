@@ -89,7 +89,7 @@ func ParseFile(r io.Reader, f *SourceFile) (*Node, error) {
 
 	p.f = f
 	p.line = 1
-	p.offset = 0
-	p.cur = 0
+	p.last_seq = seq{offset: -1}
+	p.expect_eof = true
 	return p.parse()
 }
