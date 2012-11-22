@@ -27,9 +27,9 @@ import (
 //     Node{Value: "4"}}}}
 type Node struct {
 	Location SourceLoc
-	Value string
+	Value    string
 	Children *Node
-	Next *Node
+	Next     *Node
 }
 
 // Returns true if the node is a list (has children).
@@ -46,13 +46,35 @@ func (n *Node) String() string {
 	return n.Value
 }
 
+// Returns the number of children nodes. Has O(N) complexity.
+func (n Node) NumChildren() int {
+	i := 0
+	c := n.Children
+	for c != nil {
+		i++
+		c = c.Next
+	}
+	return i
+}
+
+// Returns the number of sibling nodes. Has O(N) complexity.
+func (n Node) NumSiblings() int {
+	i := 0
+	s := n.Next
+	for s != nil {
+		i++
+		s = s.Next
+	}
+	return i
+}
+
 // This error structure is Parse* functions family specific, it returns information
 // about errors encountered during parsing. Location can be decoded using the
 // context you passed in as an argument. If the context was nil, then the location
 // is simply a byte offset from the beginning of the input stream.
 type Error struct {
 	Location SourceLoc
-	message string
+	message  string
 }
 
 // Satisfy the built-in error interface. Returns the error message (without

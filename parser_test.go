@@ -1,10 +1,10 @@
 package sexp
 
 import (
-	"testing"
-	"strings"
-	"regexp"
 	"fmt"
+	"regexp"
+	"strings"
+	"testing"
 )
 
 var palindrome = `
@@ -94,11 +94,11 @@ func test_file(ctx *SourceContext, name, content string, t *testing.T) {
 
 	_ = root
 	/*
-	root = root.Children
-	for root != nil {
-		print_ast(root, 0)
-		root = root.Next
-	}
+		root = root.Children
+		for root != nil {
+			print_ast(root, 0)
+			root = root.Next
+		}
 	*/
 }
 

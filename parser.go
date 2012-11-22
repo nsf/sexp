@@ -1,10 +1,10 @@
 package sexp
 
 import (
-	"io"
-	"fmt"
 	"bufio"
 	"bytes"
+	"fmt"
+	"io"
 	"strconv"
 )
 
@@ -17,7 +17,7 @@ var seq_delims = map[rune]rune{
 func new_error(location SourceLoc, format string, args ...interface{}) *Error {
 	return &Error{
 		Location: location,
-		message: fmt.Sprintf(format, args...),
+		message:  fmt.Sprintf(format, args...),
 	}
 }
 
@@ -43,21 +43,21 @@ func is_delimiter(r rune) bool {
 
 type seq struct {
 	offset int
-	rune rune
+	rune   rune
 }
 
 type delim_state struct {
-	last_seq seq
+	last_seq   seq
 	expect_eof bool
 }
 
 type parser struct {
-	r *bufio.Reader
-	f *SourceFile
-	buf bytes.Buffer
-	line int
+	r      *bufio.Reader
+	f      *SourceFile
+	buf    bytes.Buffer
+	line   int
 	offset int
-	cur rune
+	cur    rune
 	curlen int
 	delim_state
 }
@@ -76,7 +76,7 @@ func (p *parser) restore_delim_state(s delim_state) {
 func (p *parser) error(loc SourceLoc, format string, args ...interface{}) {
 	panic(&Error{
 		Location: loc,
-		message: fmt.Sprintf(format, args...),
+		message:  fmt.Sprintf(format, args...),
 	})
 }
 
@@ -91,7 +91,7 @@ func (p *parser) next() {
 				return
 			}
 			p.error(p.f.Encode(p.last_seq.offset),
-				"missing matching sequence '%c' delimiter",
+				"missing matching sequence delimiter '%c'",
 				seq_delims[p.last_seq.rune])
 		}
 		panic(err)
@@ -100,7 +100,7 @@ func (p *parser) next() {
 	p.cur = r
 	p.curlen = s
 	if r == '\n' {
-		p.f.AddLine(p.offset+p.curlen)
+		p.f.AddLine(p.offset + p.curlen)
 	}
 }
 
@@ -138,6 +138,8 @@ func (p *parser) parse_node() *Node {
 again:
 	// the convention is that this function is called on a non-space `p.cur`
 	switch p.cur {
+	case ')':
+		return nil
 	case '(':
 		return p.parse_list()
 	case '"':
@@ -176,6 +178,9 @@ func (p *parser) parse_list() *Node {
 		}
 
 		node := p.parse_node()
+		if node == nil {
+			continue
+		}
 		if head.Children == nil {
 			head.Children = node
 		} else {
@@ -276,7 +281,7 @@ func (p *parser) parse_string() *Node {
 		case '"':
 			node := &Node{
 				Location: loc,
-				Value: p.buf.String(),
+				Value:    p.buf.String(),
 			}
 			p.buf.Reset()
 
@@ -301,7 +306,7 @@ func (p *parser) parse_raw_string() *Node {
 		if p.cur == '`' {
 			node := &Node{
 				Location: loc,
-				Value: p.buf.String(),
+				Value:    p.buf.String(),
 			}
 			p.buf.Reset()
 			// consume enclosing '`', could be EOF
@@ -322,7 +327,7 @@ func (p *parser) parse_ident() *Node {
 		if is_delimiter(p.cur) {
 			node := &Node{
 				Location: loc,
-				Value: p.buf.String(),
+				Value:    p.buf.String(),
 			}
 			p.buf.Reset()
 			return node
@@ -358,6 +363,9 @@ func (p *parser) parse() (root *Node, err error) {
 	for {
 		p.skip_spaces()
 		node := p.parse_node()
+		if node == nil {
+			continue
+		}
 		if root.Children == nil {
 			root.Children = node
 		} else {
