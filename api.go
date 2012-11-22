@@ -42,6 +42,10 @@ func (n *Node) IsScalar() bool {
 	return n.Children == nil
 }
 
+func (n *Node) String() string {
+	return n.Value
+}
+
 // This error structure is Parse* functions family specific, it returns information
 // about errors encountered during parsing. Location can be decoded using the
 // context you passed in as an argument. If the context was nil, then the location

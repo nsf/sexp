@@ -19,7 +19,7 @@ var text2 = `
 |On the other hand, we denounce with righteous indignation and dislike men who
 are so beguiled and demoralized by the charms of pleasure of the moment, so
 blinded by desire, that they cannot foresee the pain and trouble that are bound
-to ensue; and equal blame belongs to those who fail in their duty through
+|to ensue; and equal blame belongs to those who fail in their duty through
 weakness of will, which is the same as saying through shrinking from toil and
 pain. These cases are perfectly simple and easy to distinguish. In a free
 hour, when our power of choice is untrammelled and when nothing prevents our
@@ -105,7 +105,7 @@ func TestSourceLocation(t *testing.T) {
 		}
 	}
 
-	if len(locs) != 12 {
+	if len(locs) != 14 {
 		t.Fatalf("there should be 12 '|' characters in the stream")
 	}
 
@@ -115,13 +115,15 @@ func TestSourceLocation(t *testing.T) {
 		{"1.txt", 6, 21, 414},
 		{"1.txt", 6, 32, 425},
 		{"2.txt", 1, 0, 0},
-		{"2.txt", 13, 71, 997},
+		{"2.txt", 4, 0, 235},
+		{"2.txt", 13, 71, 998},
 		{"3.txt", 1, 12, 12},
 		{"3.txt", 3, 21, 178},
 		{"3.txt", 6, 21, 414},
 		{"3.txt", 6, 32, 425},
 		{"4.txt", 1, 0, 0},
-		{"4.txt", 13, 71, 997},
+		{"4.txt", 4, 0, 235},
+		{"4.txt", 13, 71, 998},
 	}
 	files := map[string]string{
 		"1.txt": text1,

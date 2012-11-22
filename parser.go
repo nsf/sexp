@@ -58,6 +58,7 @@ type parser struct {
 	line int
 	offset int
 	cur rune
+	curlen int
 	delim_state
 }
 
@@ -80,11 +81,13 @@ func (p *parser) error(loc SourceLoc, format string, args ...interface{}) {
 }
 
 func (p *parser) next() {
+	p.offset += p.curlen
 	r, s, err := p.r.ReadRune()
 	if err != nil {
 		if err == io.EOF {
 			if p.expect_eof {
 				p.cur = 0
+				p.curlen = 0
 				return
 			}
 			p.error(p.f.Encode(p.last_seq.offset),
@@ -94,11 +97,11 @@ func (p *parser) next() {
 		panic(err)
 	}
 
-	p.offset += s
-	if r == '\n' {
-		p.f.AddLine(p.offset)
-	}
 	p.cur = r
+	p.curlen = s
+	if r == '\n' {
+		p.f.AddLine(p.offset+p.curlen)
+	}
 }
 
 func (p *parser) skip_spaces() {
