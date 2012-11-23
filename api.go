@@ -47,7 +47,7 @@ func (n *Node) String() string {
 }
 
 // Returns the number of children nodes. Has O(N) complexity.
-func (n Node) NumChildren() int {
+func (n *Node) NumChildren() int {
 	i := 0
 	c := n.Children
 	for c != nil {
@@ -58,7 +58,7 @@ func (n Node) NumChildren() int {
 }
 
 // Returns the number of sibling nodes. Has O(N) complexity.
-func (n Node) NumSiblings() int {
+func (n *Node) NumSiblings() int {
 	i := 0
 	s := n.Next
 	for s != nil {
