@@ -62,7 +62,7 @@ func is_space(r rune) bool {
 }
 
 func is_delimiter(r rune) bool {
-	return is_space(r) || r == ')' || r == 0
+	return is_space(r) || r == ')' || r == ';' || r == 0
 }
 
 type seq struct {

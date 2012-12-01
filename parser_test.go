@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"bytes"
 )
 
 var palindrome = `
@@ -85,7 +86,7 @@ func print_ast(n *Node, indent int) {
 	}
 }
 
-func test_file(ctx *SourceContext, name, content string, t *testing.T) {
+func test_file(t *testing.T, ctx *SourceContext, name, content string) {
 	root, err := Parse(strings.NewReader(content), name, -1, ctx)
 	if err != nil {
 		t.Error(err)
@@ -102,30 +103,71 @@ func test_file(ctx *SourceContext, name, content string, t *testing.T) {
 	*/
 }
 
-func test_value(source, result string, t *testing.T) {
-	var ctx SourceContext
-	root, err := Parse(strings.NewReader(source), "", -1, &ctx)
+func format_tree(buf *bytes.Buffer, root *Node) {
+	if root.IsList() {
+		buf.WriteString("(")
+		c := root.Children
+		for {
+			format_tree(buf, c)
+			if c.Next == nil {
+				break
+			} else {
+				buf.WriteString(" ")
+				c = c.Next
+			}
+		}
+		buf.WriteString(")")
+		return
+	}
+
+	fmt.Fprintf(buf, "%q", root.Value)
+}
+
+func format_siblings(buf *bytes.Buffer, n *Node) {
+	for n != nil {
+		format_tree(buf, n)
+		if n.Next != nil {
+			buf.WriteString(" ")
+		}
+		n = n.Next
+	}
+}
+
+func test_tree(t *testing.T, source, gold string) {
+	root, err := Parse(strings.NewReader(source), "", -1, nil)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
-	val := root.Children.Value
-	if val != result {
-		t.Errorf("got: %q, expected: %q", val, result)
+	var buf bytes.Buffer
+	format_siblings(&buf, root.Children)
+	src := buf.String()
+	if gold != src {
+		t.Errorf("%s != %s", src, gold)
+	} else {
+		t.Logf("%s == %s", source, gold)
 	}
 }
 
 func TestParser(t *testing.T) {
 	var ctx SourceContext
-	test_file(&ctx, "palindrome.scm", palindrome, t)
-	test_file(&ctx, "config.sexp", config, t)
-	test_file(&ctx, "empty.sexp", empty, t)
+	test_file(t, &ctx, "palindrome.scm", palindrome)
+	test_file(t, &ctx, "config.sexp", config)
+	test_file(t, &ctx, "empty.sexp", empty)
 
-	test_value(`"\n"`, "\n", t)
-	test_value(`"\xFF"`, "\xFF", t)
-	test_value(`"\u1234\r"`, "\u1234\r", t)
-	test_value(`"\U00101234\t\t"`, "\U00101234\t\t", t)
+	// string interpreter
+	test_tree(t, `"\n"`, `"\n"`)
+	test_tree(t, `"\xFF"`, `"\xff"`)
+	test_tree(t, `"\u0436\r"`, `"ж\r"`)
+	test_tree(t, `"\U00101234\t\t"`, `"\U00101234\t\t"`)
+
+	// general
+	test_tree(t, "()", `""`)
+	test_tree(t, "(() ())", `("" "")`)
+	test_tree(t, "(123 456)", `("123" "456")`)
+	test_tree(t, "123 ()  456; comment", `"123" "" "456"`)
+	test_tree(t, `123 ()  "456; comment"`, `"123" "" "456; comment"`)
+	test_tree(t, "1 (2 (3 (4 (5))))", `"1" ("2" ("3" ("4" ("5"))))`)
 }
 
 func TestParserErrors(t *testing.T) {
