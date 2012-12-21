@@ -2,7 +2,6 @@ package sexp
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 	"errors"
@@ -197,24 +196,13 @@ func TestParserErrors(t *testing.T) {
 		_, err := Parse(strings.NewReader(source), "test.txt", -1, &ctx)
 		return err
 	}
-	must_contain := func(err error, what string) {
-		if err == nil {
-			t.Errorf("non-nil error expected")
-			return
-		}
-		re := regexp.MustCompile(what)
-		if !re.MatchString(err.Error()) {
-			t.Errorf(`expected: "%s", got: "%s"`, what, err)
-		} else {
-			t.Logf(`ok: %s`, err)
-		}
-	}
-	must_contain(test(`(1 2 3`), `missing.+\)`)
-	must_contain(test(`"1 2 3`), `missing.+"`)
-	must_contain(test("`1 2 3"), "missing.+`")
-	must_contain(test("(`1 2 3`"), `missing.+\)`)
-	must_contain(test("\"1 2 3\n\""), `newline is not allowed`)
-	must_contain(test(`"\z"`), `unrecognized escape sequence`)
-	must_contain(test(`"\x5J"`), `is not a hex digit`)
-	must_contain(test(`)`), `unexpected '\)'`)
+	error_must_contain(t, test(`(1 2 3`), `missing.+\)`)
+	error_must_contain(t, test(`"1 2 3`), `missing.+"`)
+	error_must_contain(t, test("`1 2 3"), "missing.+`")
+	error_must_contain(t, test("(`1 2 3`"), `missing.+\)`)
+	error_must_contain(t, test("\"1 2 3\n\""), `newline is not allowed`)
+	error_must_contain(t, test(`"\z"`), `unrecognized escape sequence`)
+	error_must_contain(t, test(`"\x5J"`), `is not a hex digit`)
+	error_must_contain(t, test(`)`), `unexpected '\)'`)
+	error_must_contain(t, test(`123)`), `unexpected '\)'`)
 }
