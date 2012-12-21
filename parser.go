@@ -118,7 +118,8 @@ func (p *parser) next() {
 				"missing matching sequence delimiter '%c'",
 				seq_delims[p.last_seq.rune])
 		}
-		panic(err)
+		p.error(p.f.Encode(p.offset),
+			"unexpected read error: %s", err)
 	}
 
 	p.cur = r
@@ -388,7 +389,8 @@ func (p *parser) parse() (root *Node, err error) {
 		p.skip_spaces()
 		node := p.parse_node()
 		if node == nil {
-			continue
+			p.error(p.f.Encode(p.offset),
+				"unexpected ')' at the top level")
 		}
 		if root.Children == nil {
 			root.Children = node
