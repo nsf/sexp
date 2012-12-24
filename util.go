@@ -49,20 +49,8 @@ func number_suffix(n int) string {
 
 func the_list_has_n_children(n int) string {
 	switch n {
-	case 0:
-		return "the list has no children"
 	case 1:
 		return "the list has 1 child only"
 	}
 	return fmt.Sprintf("the list has %d children only", n)
-}
-
-func the_list_has_n_siblings(n int) string {
-	switch n {
-	case 0:
-		return "the list has no siblings"
-	case 1:
-		return "the list has 1 sibling only"
-	}
-	return fmt.Sprintf("the list has %d siblings only", n)
 }

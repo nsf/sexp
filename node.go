@@ -72,6 +72,7 @@ func (n *Node) Nth(num int) (*Node, error) {
 		i++
 	}
 
+	num++
 	return nil, new_error(n.Location,
 		"cannot retrieve %d%s child node, %s",
 		num, number_suffix(num),
@@ -87,10 +88,10 @@ func (n *Node) IterKeyValues(f func(k, v *Node)) error {
 			return new_error(c.Location,
 				"node is not a list, expected key/value pair")
 		}
-		k, err := c.Nth(0)
-		if err != nil {
-			return err
-		}
+		// don't check for error here, because it's obvious that if the
+		// node is a list (and the definition of the list is `Children
+		// != nil`), it has at least one child
+		k, _ := c.Nth(0)
 		v, err := c.Nth(1)
 		if err != nil {
 			return err
@@ -331,7 +332,7 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 		}
 	case reflect.Interface:
 		if v.NumMethod() != 0 {
-			break
+			n.unmarshal_error(t, "unsupported type")
 		}
 
 		v.Set(reflect.ValueOf(n.unmarshal_as_interface()))

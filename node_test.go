@@ -46,7 +46,6 @@ func test_unmarshal_children(t *testing.T, data string, v ...interface{}) {
 	test_unmarshal_generic(t, data, (*Node).UnmarshalChildren, v...)
 }
 
-
 const countries = `
 ;; a list of arbitrary countries
 (countries (
@@ -122,9 +121,17 @@ func test_unmarshal_error(t *testing.T, source, what string, args ...interface{}
 
 func TestUnmarshalErrors(t *testing.T) {
 	var (
-		a [3]uint
+		a [3]uint8
 		b neversmiley
 		c [1]neversmiley2
+		d [][]string
+		e []bool
+		f map[string]int
+		g chan int
+		h [3]int8
+		i **int
+		j [1]float64
+		k interface { String() string }
 	)
 
 
@@ -139,4 +146,103 @@ func TestUnmarshalErrors(t *testing.T) {
 	})
 	test_unmarshal_error(t, "123", "Y U NO HAPPY", &b)
 	test_unmarshal_error(t, "123", "inevitable failure", &c)
+	test_unmarshal_error(t, "123", "list value required", &d)
+	test_unmarshal_error(t, "(true (1 2 3) false)", "scalar value required", &e)
+	test_unmarshal_error(t, "256", "integer overflow", &a)
+	test_unmarshal_error(t, "abc", "invalid syntax", &a)
+	test_unmarshal_error(t, "trUe", "undefined boolean", &e)
+	test_unmarshal_error(t, "(a 1) (b 2) (c 3) oops", "node is not a list", &f)
+	test_unmarshal_error(t, "hello", "unsupported type", &g)
+	test_unmarshal_error(t, "-129", "integer overflow", &h)
+	test_unmarshal_error(t, "abc", "invalid syntax", &h)
+	test_unmarshal_error(t, "11", "unsupported type", &i) // only one level of indirection
+	test_unmarshal_error(t, "3.1415f", "invalid syntax", &j)
+	test_unmarshal_error(t, "xxx", "unsupported type", &k)
+}
+
+func TestNodeNth(t *testing.T) {
+	root, err := Parse(strings.NewReader("0 1 2 3"), "", -1, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	assert := func(cond bool, msg interface{}) {
+		if !cond {
+			t.Error(msg)
+		}
+	}
+	n, err := root.Nth(0)
+	assert(err == nil, err)
+	assert(n != nil, "non-nil node expected")
+	assert(n.Value == "0", "0 expected")
+
+	_, err = n.Nth(234)
+	error_must_contain(t, err, "is not a list")
+
+	_, err = root.Nth(3)
+	assert(err == nil, err)
+
+	_, err = root.Nth(4)
+	error_must_contain(t, err, "cannot retrieve 5th")
+}
+
+func TestNodeIterKeyValues(t *testing.T) {
+	root, err := Parse(strings.NewReader(`
+		(
+			(x y)
+			(z w)
+			(a 1)
+			(b 2)
+			(c 3)
+		)
+		(
+			(x y)
+			(z)
+		)
+		(
+			not-a-list
+		)
+	`), "", -1, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	nth_must := func(n *Node, err error) *Node {
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	list1 := nth_must(root.Nth(0))
+	list2 := nth_must(root.Nth(1))
+	list3 := nth_must(root.Nth(2))
+
+	items := []struct{key, value string}{
+		{"x", "y"},
+		{"z", "w"},
+		{"a", "1"},
+		{"b", "2"},
+		{"c", "3"},
+	}
+	i := 0
+	err = list1.IterKeyValues(func(k, v *Node) {
+		if k.Value != items[i].key {
+			t.Errorf("%q != %q", k.Value, items[i].key)
+		}
+		if v.Value != items[i].value {
+			t.Errorf("%q != %q", v.Value, items[i].value)
+		}
+		i++
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = list2.IterKeyValues(func(k, v *Node) {})
+	error_must_contain(t, err, "cannot retrieve 2nd")
+
+	err = list3.IterKeyValues(func(k, v *Node) {})
+	error_must_contain(t, err, "node is not a list")
 }
