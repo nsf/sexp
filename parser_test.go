@@ -138,6 +138,27 @@ func format_siblings(buf *bytes.Buffer, n *Node) {
 	}
 }
 
+func test_dump(t *testing.T, source, gold string) {
+	root, err := Parse(strings.NewReader(source), "", -1, nil)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	buf := bytes.NewBuffer(nil)
+	root.Dump(buf)
+
+	src := buf.String()
+
+	if gold != src {
+		t.Errorf("%s != %s", src, gold)
+	} else {
+		t.Logf("%s == %s", source, gold)
+	}
+
+}
+
 func test_tree(t *testing.T, source, gold string) {
 	root, err := Parse(strings.NewReader(source), "", -1, nil)
 	if err != nil {
@@ -182,6 +203,23 @@ func TestParser(t *testing.T) {
 	test_tree(t, `123 ()  "456; comment"`, `"123" "" "456; comment"`)
 	test_tree(t, "1 (2 (3 (4 (5))))", `"1" ("2" ("3" ("4" ("5"))))`)
 	test_tree(t, "`123` `456`", `"123" "456"`)
+
+	// Same tests but using Dump
+	test_dump(t, `"\a\b\f\n\r\t\v\\\""`, `"\a\b\f\n\r\t\v\\\""`)
+	test_dump(t, `"\xFF"`, `"\xff"`)
+	test_dump(t, `"\u0436\r"`, `"ж\r"`)
+	test_dump(t, `"\U00101234\t\t"`, `"\U00101234\t\t"`)
+	test_dump(t, `"\""`, `"\""`)
+
+	test_dump(t, "()", `""`)
+	test_dump(t, "(;comment\n)", `""`)
+	test_dump(t, "123 ;comment\n123", `"123" "123"`)
+	test_dump(t, "(() ())", `("" "")`)
+	test_dump(t, "(123 456)", `("123" "456")`)
+	test_dump(t, "123 ()  456; comment", `"123" "" "456"`)
+	test_dump(t, `123 ()  "456; comment"`, `"123" "" "456; comment"`)
+	test_dump(t, "1 (2 (3 (4 (5))))", `"1" ("2" ("3" ("4" ("5"))))`)
+	test_dump(t, "`123` `456`", `"123" "456"`)
 }
 
 func TestParserErrors(t *testing.T) {
