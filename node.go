@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"io"
 )
 
 // The main and only AST structure. All fields are self explanatory, however
@@ -36,6 +37,37 @@ type Node struct {
 // Returns true if the node is a list (has children).
 func (n *Node) IsList() bool {
 	return n.Children != nil
+}
+
+// Dumps a Node to a io.Writer and keeps a record of the deepness.
+//
+// The `level` variable means deepness and may help to add pretty
+// indentation at a later time.
+func (n *Node) dump(fp io.Writer, level uint64) {
+
+	if n.IsList() == true {
+		if level > 0 {
+			fp.Write([]byte(`(`))
+		}
+		if n.Children != nil {
+			n.Children.dump(fp, level + 1)
+		}
+		if level > 0 {
+			fp.Write([]byte(`)`))
+		}
+	} else {
+		fp.Write([]byte(fmt.Sprintf("%q", n.Value)))
+	}
+
+	if n.Next != nil {
+		fp.Write([]byte(` `))
+		n.Next.dump(fp, level)
+	}
+}
+
+// Dumps a *Node to an io.Writer
+func (n *Node) Dump(fp io.Writer) {
+	n.dump(fp, 0)
 }
 
 // Return true if the node is a scalar (has no children).
