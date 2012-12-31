@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 // The main and only AST structure. All fields are self explanatory, however
@@ -82,7 +83,7 @@ func (n *Node) Nth(num int) (*Node, error) {
 // Walk over children nodes, assuming they are key/value pairs. It returns error
 // if the iterable node is not a list or if any of its children is not a
 // key/value pair.
-func (n *Node) IterKeyValues(f func(k, v *Node)) error {
+func (n *Node) IterKeyValues(f func(k, v *Node) error) error {
 	for c := n.Children; c != nil; c = c.Next {
 		if !c.IsList() {
 			return new_error(c.Location,
@@ -96,7 +97,10 @@ func (n *Node) IterKeyValues(f func(k, v *Node)) error {
 		if err != nil {
 			return err
 		}
-		f(k, v)
+		err = f(k, v)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -344,16 +348,57 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 
 		keyv := reflect.New(t.Key()).Elem()
 		valv := reflect.New(t.Elem()).Elem()
-		err := n.IterKeyValues(func(key, val *Node) {
+		err := n.IterKeyValues(func(key, val *Node) error {
 			key.unmarshal_value(keyv)
 			val.unmarshal_value(valv)
 			v.SetMapIndex(keyv, valv)
+			return nil
 		})
 		if err != nil {
 			n.unmarshal_error(t, "%s", err)
 		}
 	case reflect.Struct:
-		// TODO
+		err := n.IterKeyValues(func(key, val *Node) error {
+			var f reflect.StructField
+			var ok bool
+			for i, n := 0, t.NumField(); i < n; i++ {
+				f = t.Field(i)
+				tag := f.Tag.Get("sexp")
+				if tag == "-" {
+					continue
+				}
+				if f.Anonymous {
+					continue
+				}
+				ok = tag == key.Value
+				if ok {
+					break
+				}
+				ok = f.Name == key.Value
+				if ok {
+					break
+				}
+				ok = strings.EqualFold(f.Name, key.Value)
+				if ok {
+					break
+				}
+			}
+
+			println(key.Value, val.Value)
+
+			if ok {
+				if f.PkgPath != "" {
+					n.unmarshal_error(t, "writing to an unexported field")
+				} else {
+					v := v.FieldByIndex(f.Index)
+					val.unmarshal_value(v)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			n.unmarshal_error(t, "%s", err)
+		}
 	default:
 		n.unmarshal_error(t, "unsupported type")
 	}

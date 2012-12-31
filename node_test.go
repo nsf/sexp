@@ -226,7 +226,7 @@ func TestNodeIterKeyValues(t *testing.T) {
 		{"c", "3"},
 	}
 	i := 0
-	err = list1.IterKeyValues(func(k, v *Node) {
+	err = list1.IterKeyValues(func(k, v *Node) error {
 		if k.Value != items[i].key {
 			t.Errorf("%q != %q", k.Value, items[i].key)
 		}
@@ -234,15 +234,16 @@ func TestNodeIterKeyValues(t *testing.T) {
 			t.Errorf("%q != %q", v.Value, items[i].value)
 		}
 		i++
+		return nil
 	})
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	err = list2.IterKeyValues(func(k, v *Node) {})
+	err = list2.IterKeyValues(func(k, v *Node) error { return nil })
 	error_must_contain(t, err, "cannot retrieve 2nd")
 
-	err = list3.IterKeyValues(func(k, v *Node) {})
+	err = list3.IterKeyValues(func(k, v *Node) error { return nil })
 	error_must_contain(t, err, "node is not a list")
 }
