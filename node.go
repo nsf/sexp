@@ -257,7 +257,7 @@ func (n *Node) ensure_list(t reflect.Type) {
 	n.unmarshal_error(t, "list value required")
 }
 
-func (n *Node) unmarshal_value(v reflect.Value) {
+func (n *Node) unmarshal_value(v reflect.Value, use_siblings bool) {
 	t := v.Type()
 	// we support one level of indirection at the moment
 	if v.Kind() == reflect.Ptr {
@@ -319,9 +319,15 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 		n.ensure_scalar(t)
 		v.SetString(n.Value)
 	case reflect.Array, reflect.Slice:
-		n.ensure_list(t)
+		if !use_siblings {
+			n.ensure_list(t)
+		}
 		i := 0
-		for c := n.Children; c != nil; c = c.Next {
+		c := n.Children
+		if use_siblings {
+			c = n
+		}
+		for ; c != nil; c = c.Next {
 			if i >= v.Len() {
 				if v.Kind() == reflect.Array {
 					break
@@ -330,7 +336,7 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 				}
 			}
 
-			c.unmarshal_value(v.Index(i))
+			c.unmarshal_value(v.Index(i), false)
 			i++
 		}
 
@@ -359,8 +365,8 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 		keyv := reflect.New(t.Key()).Elem()
 		valv := reflect.New(t.Elem()).Elem()
 		err := n.IterKeyValues(func(key, val *Node) error {
-			key.unmarshal_value(keyv)
-			val.unmarshal_value(valv)
+			key.unmarshal_value(keyv, false)
+			val.unmarshal_value(valv, false)
 			v.SetMapIndex(keyv, valv)
 			return nil
 		})
@@ -371,7 +377,9 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 		err := n.IterKeyValues(func(key, val *Node) error {
 			var f reflect.StructField
 			var ok bool
+			var opts tag_options
 			for i, n := 0, t.NumField(); i < n; i++ {
+				var tagname string
 				f = t.Field(i)
 				tag := f.Tag.Get("sexp")
 				if tag == "-" {
@@ -380,7 +388,9 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 				if f.Anonymous {
 					continue
 				}
-				ok = tag == key.Value
+				tagname, opts = parse_tag(tag)
+
+				ok = tagname == key.Value
 				if ok {
 					break
 				}
@@ -398,7 +408,7 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 					n.unmarshal_error(t, "writing to an unexported field")
 				} else {
 					v := v.FieldByIndex(f.Index)
-					val.unmarshal_value(v)
+					val.unmarshal_value(v, opts.contains("siblings"))
 				}
 			}
 			return nil
@@ -439,6 +449,6 @@ func (n *Node) unmarshal(v interface{}) (err error) {
 	if pv.Kind() != reflect.Ptr || pv.IsNil() {
 		panic("Node.Unmarshal expects a non-nil pointer argument")
 	}
-	n.unmarshal_value(pv.Elem())
+	n.unmarshal_value(pv.Elem(), false)
 	return nil
 }
