@@ -121,6 +121,10 @@ func (n *Node) UnmarshalChildren(vals ...interface{}) (err error) {
 		if i >= len(vals) {
 			break
 		}
+		if vals[i] == nil {
+			i++
+			continue
+		}
 		if err := c.unmarshal(vals[i]); err != nil {
 			return err
 		}
@@ -144,8 +148,10 @@ func (n *Node) Unmarshal(vals ...interface{}) (err error) {
 	}
 
 	// unmarshal the node itself
-	if err := n.unmarshal(vals[0]); err != nil {
-		return err
+	if vals[0] != nil {
+		if err := n.unmarshal(vals[0]); err != nil {
+			return err
+		}
 	}
 
 	// unmarshal node's siblings
@@ -153,6 +159,10 @@ func (n *Node) Unmarshal(vals ...interface{}) (err error) {
 	for s := n.Next; s != nil; s = s.Next {
 		if i >= len(vals) {
 			break
+		}
+		if vals[i] == nil {
+			i++
+			continue
 		}
 		if err := s.unmarshal(vals[i]); err != nil {
 			return err
@@ -383,9 +393,6 @@ func (n *Node) unmarshal_value(v reflect.Value) {
 					break
 				}
 			}
-
-			println(key.Value, val.Value)
-
 			if ok {
 				if f.PkgPath != "" {
 					n.unmarshal_error(t, "writing to an unexported field")
