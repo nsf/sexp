@@ -10,7 +10,7 @@ import (
 )
 
 // Convinience shortcut function for loading and unmarshaling an S-exp file
-// into an arbitrary type.
+// into a value of an arbitrary type.
 func Load(filename string, out interface{}) error {
 	f, err := os.Open(filename)
 	if err != nil {
