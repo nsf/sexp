@@ -62,7 +62,7 @@ func (n *Node) NumChildren() int {
 // Returns Nth child node. If node is not a list, it will return an error.
 func (n *Node) Nth(num int) (*Node, error) {
 	if !n.IsList() {
-		return nil, new_error(n.Location, "node is not a list")
+		return nil, NewUnmarshalError(n, nil, "node is not a list")
 	}
 
 	i := 0
@@ -74,7 +74,7 @@ func (n *Node) Nth(num int) (*Node, error) {
 	}
 
 	num++
-	return nil, new_error(n.Location,
+	return nil, NewUnmarshalError(n, nil,
 		"cannot retrieve %d%s child node, %s",
 		num, number_suffix(num),
 		the_list_has_n_children(n.NumChildren()))
@@ -86,7 +86,7 @@ func (n *Node) Nth(num int) (*Node, error) {
 func (n *Node) IterKeyValues(f func(k, v *Node) error) error {
 	for c := n.Children; c != nil; c = c.Next {
 		if !c.IsList() {
-			return new_error(c.Location,
+			return NewUnmarshalError(c, nil,
 				"node is not a list, expected key/value pair")
 		}
 		// don't check for error here, because it's obvious that if the
@@ -109,7 +109,8 @@ type Unmarshaler interface {
 	UnmarshalSexp(n *Node) error
 }
 
-// Unmarshal all children nodes to pointer values. TODO: more details here.
+// Unmarshal all children nodes to pointer values. Applies the same logic as
+// Unmarshal. See description of the (*Node).Unmarshal method for more details.
 func (n *Node) UnmarshalChildren(vals ...interface{}) (err error) {
 	if len(vals) == 0 {
 		return nil
@@ -141,7 +142,50 @@ func (n *Node) UnmarshalChildren(vals ...interface{}) (err error) {
 	return nil
 }
 
-// Unmarshal node and its siblings to pointer values. TODO: more details here.
+// Unmarshal node and its siblings to pointer values.
+//
+// The function expects pointers to values with arbitrary types. If one of the
+// arguments is not a pointer it will panic.
+//
+// It supports unmarshaling to the following types:
+//  - all number types: int{8,16,32,64}, uint{8,16,32,64}, float{32,64}
+//  - bool
+//  - string
+//  - arrays and slices of all supported types
+//  - empty interfaces{}
+//  - maps
+//  - structs
+//  - pointers to any of the supported types (only one level of indirection)
+//  - any type which implements Unmarshaler
+//
+// Here's some details on unmarshaling semantics:
+//  (u)ints: unmarshaled using strconv.ParseInt/strconv.ParseUint with base 10
+//           only
+//  floats:  unmarshaled using strconv.ParseFloat
+//  bool:    works strictly on two values "true" or "false"
+//  string:  unmarshaled as is (keep in mind that lexer supports escape sequences)
+//  arrays:  uses up to len(array) elements, if there is a smaller amount of
+//           elements, the rest is zeroed
+//  slices:  uses all elements appending them to the slice, however if the slice
+//           was bigger than the amount of elements, it will reslice it to the
+//           appropriate length
+//  iface:   only empty interfaces are supported, it will unmarshal AST to
+//           a []interface{} or a string
+//  map:     when unmarshaling to the map, assumes this AST form:
+//           `((key value) (key value) (key value))`, doesn't clear the map
+//           before appending all the key value pairs
+//  struct:  uses the same AST form as the map, where `key` means `field`,
+//           supports `sexp` tags (see description below), will try to match
+//           name specified in the tag, the field name and the field name
+//           ignoring the case in that order
+//
+// Struct tags have the form: "name,opt,opt". Special tag "-" means "skip me".
+// Supported options:
+//  siblings: will use sibling nodes instead of children for unmarshaling
+//            to an array or a slice.
+//
+// Important note: If the type implements Unmarshaler interface, it will use it
+// instead of applying default unmarshaling strategies described above.
 func (n *Node) Unmarshal(vals ...interface{}) (err error) {
 	if len(vals) == 0 {
 		return nil

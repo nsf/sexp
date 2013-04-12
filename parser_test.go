@@ -1,12 +1,12 @@
 package sexp
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
-	"errors"
-	"bytes"
-	"bufio"
 )
 
 var palindrome = `
@@ -155,6 +155,7 @@ func test_tree(t *testing.T, source, gold string) {
 }
 
 type fail_reader int
+
 func (fail_reader) Read(_ []byte) (int, error) {
 	return 0, errors.New("fail reader always fails")
 }

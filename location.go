@@ -4,15 +4,14 @@ package sexp
 type SourceLoc uint32
 
 // Complete source location information. Line number starts from 1, it is a
-// traditional choice. The column is specified in bytes, because it makes it
-// character encoding agnostic. You can always get column in characters by
-// counting them in the source file between Offset-Column and Offset bytes.
-// And byte offset is here for the purpose stated above.
+// traditional choice. The column is not specified, but you can find it by
+// counting runes between LineOffset and Offset within the source file this
+// location belongs to.
 type SourceLocEx struct {
-	Filename string
-	Line     int // starting from 1
-	Column   int // starting from 0 (in bytes)
-	Offset   int // (in bytes)
+	Filename   string
+	Line       int // starting from 1
+	LineOffset int // offset to the beginning of the line (in bytes)
+	Offset     int // offset to the location (in bytes)
 }
 
 type source_line struct {
@@ -151,9 +150,9 @@ func (s *SourceContext) Decode(loc SourceLoc) SourceLocEx {
 	offset := int(loc - file.offset)
 	line := file.find_line(offset)
 	return SourceLocEx{
-		Filename: file.name,
-		Line:     line.num,
-		Column:   offset - line.offset,
-		Offset:   offset,
+		Filename:   file.name,
+		Line:       line.num,
+		LineOffset: line.offset,
+		Offset:     offset,
 	}
 }

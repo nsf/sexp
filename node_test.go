@@ -1,11 +1,11 @@
 package sexp
 
 import (
-	"strings"
-	"testing"
+	"errors"
 	"reflect"
 	"regexp"
-	"errors"
+	"strings"
+	"testing"
 )
 
 func must_contain(t *testing.T, err, what string) {
@@ -69,6 +69,7 @@ const countries = `
 
 // just to test Unmarshaler interface
 type smiley string
+
 func (s *smiley) UnmarshalSexp(n *Node) error {
 	if !n.IsScalar() {
 		return NewUnmarshalError(n, reflect.TypeOf(s),
@@ -80,10 +81,13 @@ func (s *smiley) UnmarshalSexp(n *Node) error {
 
 // always fails
 type neversmiley string
+
 func (s *neversmiley) UnmarshalSexp(n *Node) error {
 	return NewUnmarshalError(n, reflect.TypeOf(s), ":-( Y U NO HAPPY?")
 }
+
 type neversmiley2 string
+
 func (s *neversmiley2) UnmarshalSexp(n *Node) error {
 	return errors.New("inevitable failure")
 }
@@ -131,9 +135,10 @@ func TestUnmarshalErrors(t *testing.T) {
 		h [3]int8
 		i **int
 		j [1]float64
-		k interface { String() string }
+		k interface {
+			String() string
+		}
 	)
-
 
 	expect_panic(func() {
 		test_unmarshal_error(t, "1 2 3", "", a)
@@ -218,7 +223,7 @@ func TestNodeIterKeyValues(t *testing.T) {
 	list2 := nth_must(root.Nth(1))
 	list3 := nth_must(root.Nth(2))
 
-	items := []struct{key, value string}{
+	items := []struct{ key, value string }{
 		{"x", "y"},
 		{"z", "w"},
 		{"a", "1"},

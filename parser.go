@@ -25,6 +25,17 @@ func Load(filename string, out interface{}) error {
 	return ast.Unmarshal(out)
 }
 
+// Convinience shortcut function for loading an S-exp AST from a file.
+func LoadAST(filename string) (*Node, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return Parse(f, "", -1, nil)
+}
+
 // Parse an S-exp stream from a given io.Reader.
 //
 // Filename is used for informative purposes only. Length must reflect the length
@@ -60,6 +71,21 @@ func ParseFile(r io.Reader, f *SourceFile) (*Node, error) {
 	p.last_seq = seq{offset: -1}
 	p.expect_eof = true
 	return p.parse()
+}
+
+// This error structure is Parse* functions family specific, it returns information
+// about errors encountered during parsing. Location can be decoded using the
+// context you passed in as an argument. If the context was nil, then the location
+// is simply a byte offset from the beginning of the input stream.
+type ParseError struct {
+	Location SourceLoc
+	message  string
+}
+
+// Satisfy the built-in error interface. Returns the error message (without
+// source location).
+func (e *ParseError) Error() string {
+	return e.message
 }
 
 var seq_delims = map[rune]rune{
@@ -115,7 +141,7 @@ func (p *parser) restore_delim_state(s delim_state) {
 }
 
 func (p *parser) error(loc SourceLoc, format string, args ...interface{}) {
-	panic(&Error{
+	panic(&ParseError{
 		Location: loc,
 		message:  fmt.Sprintf(format, args...),
 	})
@@ -388,7 +414,7 @@ func (p *parser) parse() (root *Node, err error) {
 			if e == io.EOF {
 				return
 			}
-			if sexperr, ok := e.(*Error); ok {
+			if sexperr, ok := e.(*ParseError); ok {
 				root = nil
 				err = sexperr
 				return

@@ -4,28 +4,6 @@ import (
 	"fmt"
 )
 
-// This error structure is Parse* functions family specific, it returns information
-// about errors encountered during parsing. Location can be decoded using the
-// context you passed in as an argument. If the context was nil, then the location
-// is simply a byte offset from the beginning of the input stream.
-type Error struct {
-	Location SourceLoc
-	message  string
-}
-
-// Satisfy the built-in error interface. Returns the error message (without
-// source location).
-func (e *Error) Error() string {
-	return e.message
-}
-
-func new_error(location SourceLoc, format string, args ...interface{}) *Error {
-	return &Error{
-		Location: location,
-		message:  fmt.Sprintf(format, args...),
-	}
-}
-
 func panic_if_error(err error) {
 	if err != nil {
 		panic(err)
