@@ -109,8 +109,9 @@ type Unmarshaler interface {
 	UnmarshalSexp(n *Node) error
 }
 
-// Unmarshal all children nodes to pointer values. Applies the same logic as
-// Unmarshal. See description of the (*Node).Unmarshal method for more details.
+// Unmarshals all children nodes of the node to pointer values. Applies the
+// same logic as Unmarshal. See description of the (*Node).Unmarshal method for
+// more details.
 func (n *Node) UnmarshalChildren(vals ...interface{}) (err error) {
 	if len(vals) == 0 {
 		return nil
@@ -134,15 +135,20 @@ func (n *Node) UnmarshalChildren(vals ...interface{}) (err error) {
 
 	// did we fullfil all the arguments?
 	if i < len(vals) {
+		if i == 0 {
+			return NewUnmarshalError(n, nil,
+				"node has no children, %d was requested",
+				len(vals))
+		}
 		return NewUnmarshalError(n, nil,
-			"node has only %d children, %d was requested",
+			"node has %d children, %d was requested",
 			i, len(vals))
 	}
 
 	return nil
 }
 
-// Unmarshal node and its siblings to pointer values.
+// Unmarshals the node and its siblings to pointer values.
 //
 // The function expects pointers to values with arbitrary types. If one of the
 // arguments is not a pointer it will panic.
@@ -216,8 +222,13 @@ func (n *Node) Unmarshal(vals ...interface{}) (err error) {
 
 	// did we fullfil all the arguments?
 	if i < len(vals) {
+		if i == 1 {
+			return NewUnmarshalError(n, nil,
+				"node has no siblings, %d was requested",
+				len(vals)-1)
+		}
 		return NewUnmarshalError(n, nil,
-			"node has only %d siblings, %d was requested",
+			"node has %d siblings, %d was requested",
 			i-1, len(vals)-1)
 	}
 
