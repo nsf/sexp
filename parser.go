@@ -53,6 +53,14 @@ func Parse(r io.RuneReader, f *SourceFile) (*Node, error) {
 // here will be returned as a value Node, but " y" should remain untouched,
 // however without reading the space character we can't tell if this is the end
 // of "x" or not. Hence the requirement of being able to unread one rune.
+//
+// It's unclear what to do about error reporting for S-expressions read from
+// the stream. The usual idea of lines and columns doesn't apply here. Hence if
+// you do want to report errors gracefully some hacks will be necessary to do
+// so.
+//
+// NOTE: Maybe ParseOne will be changed in future to better serve the need of
+// good error reporting.
 func ParseOne(r io.RuneScanner, f *SourceFile) (*Node, error) {
 	var ctx SourceContext
 	if f == nil {
