@@ -242,6 +242,15 @@ type UnmarshalError struct {
 }
 
 func NewUnmarshalError(n *Node, t reflect.Type, format string, args ...interface{}) *UnmarshalError {
+	if len(args) == 0 {
+		// simple hack to make it a bit faster in the case when no args
+		// were provided
+		return &UnmarshalError{
+			Type:    t,
+			Node:    n,
+			message: format,
+		}
+	}
 	return &UnmarshalError{
 		Type:    t,
 		Node:    n,
