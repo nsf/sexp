@@ -37,7 +37,6 @@ func Parse(r io.RuneReader, f *SourceFile) (*Node, error) {
 	var p parser
 	p.r = r
 	p.f = f
-	p.line = 1
 	p.last_seq = seq{offset: -1}
 	p.expect_eof = true
 	return p.parse()
@@ -64,7 +63,6 @@ func ParseOne(r io.RuneScanner, f *SourceFile) (*Node, error) {
 	p.r = r
 	p.rs = r
 	p.f = f
-	p.line = 1
 	p.last_seq = seq{offset: -1}
 	p.expect_eof = true
 	return p.parse_one_node()
@@ -120,7 +118,6 @@ type parser struct {
 	rs     io.RuneScanner
 	f      *SourceFile
 	buf    bytes.Buffer
-	line   int
 	offset int
 	cur    rune
 	curlen int
