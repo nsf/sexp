@@ -17,7 +17,7 @@ func ExampleNode_Unmarshal() {
 		Tgt [3]float32 `sexp:"target,siblings"`
 	}
 
-	ast, err := sexp.Parse(strings.NewReader(example_sexp), "", -1, nil)
+	ast, err := sexp.Parse(strings.NewReader(example_sexp), nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -42,7 +42,8 @@ func ExampleBeautify() {
 		( ; oops, no enclosing ')' here
 	`
 	var ctx sexp.SourceContext
-	_, err := sexp.Parse(strings.NewReader(example_sexp), "example.sexp", -1, &ctx)
+	f := ctx.AddFile("example.sexp", -1)
+	_, err := sexp.Parse(strings.NewReader(example_sexp), f)
 	if err != nil {
 		// we know the contents of the only source file used, let's
 		// just return it:

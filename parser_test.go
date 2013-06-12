@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"io/ioutil"
 )
 
 var palindrome = `
@@ -88,24 +89,11 @@ func print_ast(n *Node, indent int) {
 }
 
 func test_file(t *testing.T, ctx *SourceContext, name, content string) {
-	root, err := Parse(strings.NewReader(content), name, -1, ctx)
+	f := ctx.AddFile(name, -1)
+	_, err := Parse(strings.NewReader(content), f)
 	if err != nil {
 		t.Error(err)
 	}
-
-	root, err = Parse(bufio.NewReader(strings.NewReader(content)), name, -1, ctx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	_ = root
-	/*
-		root = root.Children
-		for root != nil {
-			print_ast(root, 0)
-			root = root.Next
-		}
-	*/
 }
 
 func format_tree(buf *bytes.Buffer, root *Node) {
@@ -139,7 +127,7 @@ func format_siblings(buf *bytes.Buffer, n *Node) {
 }
 
 func test_tree(t *testing.T, source, gold string) {
-	root, err := Parse(strings.NewReader(source), "", -1, nil)
+	root, err := Parse(strings.NewReader(source), nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -187,14 +175,15 @@ func TestParser(t *testing.T) {
 
 func TestParserErrors(t *testing.T) {
 	// fail reader
-	_, err := Parse(fail_reader(0), "", -1, nil)
+	_, err := Parse(bufio.NewReader(fail_reader(0)), nil)
 	if err == nil {
 		t.Fatal("error expected")
 	}
 
 	var ctx SourceContext
 	test := func(source string) error {
-		_, err := Parse(strings.NewReader(source), "test.txt", -1, &ctx)
+		f := ctx.AddFile("test.txt", -1)
+		_, err := Parse(strings.NewReader(source), f)
 		return err
 	}
 	error_must_contain(t, test(`(1 2 3`), `missing.+\)`)
@@ -206,4 +195,34 @@ func TestParserErrors(t *testing.T) {
 	error_must_contain(t, test(`"\x5J"`), `is not a hex digit`)
 	error_must_contain(t, test(`)`), `unexpected '\)'`)
 	error_must_contain(t, test(`123)`), `unexpected '\)'`)
+}
+
+const mixed_text = `(node 1 2 3)Some text here`
+
+func TestParseOne(t *testing.T) {
+	sr := strings.NewReader(mixed_text)
+	node, err := ParseOne(sr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node.NumChildren() != 4 {
+		t.Fatalf("4 children expected, got: %d",
+			node.NumChildren())
+	}
+	c, err := node.Nth(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Value != "node" {
+		t.Fatalf("value \"node\" expected, got: %s", c.Value)
+	}
+
+	data, err := ioutil.ReadAll(sr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(data) != "Some text here" {
+		t.Fatalf(`"Some text here" expected, got: %s`, string(data))
+	}
 }

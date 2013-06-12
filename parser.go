@@ -1,76 +1,73 @@
 package sexp
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 )
 
-// Convinience shortcut function for loading and unmarshaling an S-exp file
-// into a value of an arbitrary type.
-func Load(filename string, out interface{}) error {
-	f, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	ast, err := Parse(f, "", -1, nil)
-	if err != nil {
-		return err
-	}
-	return ast.Unmarshal(out)
-}
-
-// Convinience shortcut function for loading an S-exp AST from a file.
-func LoadAST(filename string) (*Node, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	return Parse(f, "", -1, nil)
-}
-
-// Parse an S-exp stream from a given io.Reader.
+// Parses S-expressions from a given io.RuneReader.
 //
-// Filename is used for informative purposes only. Length must reflect the length
-// of a stream or -1 if unknown. Source context is optional as well, it will be
-// used to encode source location information. If no source context was provided,
-// the one will be created in-place, meaning you will not be able to decode
-// source locations. Returns the root node of an AST tree if there were no errors.
-func Parse(r io.Reader, filename string, length int, ctx *SourceContext) (*Node, error) {
-	if ctx == nil {
-		ctx = &SourceContext{}
+// Returned node is a virtual list node with all the S-expressions read from
+// the stream as children. In case of a syntax error, the returned error is not
+// nil.
+//
+// It's worth explaining where do you get *SourceFile from. The typical way to
+// create it is:
+//     var ctx SourceContext
+//     f := ctx.AddFile(filename, length)
+//
+// And you'll be able to use ctx later for decoding source location
+// information. It's ok to provide -1 as length if it's unknown. In that case
+// though you won't be able to add more files to the given SourceContext until
+// the file with unknown length is finalized, which happens when parsing is
+// finished.
+//
+// Also f is optional, nil is a perfectly valid argument for it, in that case
+// it will create a temporary context and add an unnamed file to it. Less setup
+// work is required, but you lose the ability to decode error source code
+// locations.
+func Parse(r io.RuneReader, f *SourceFile) (*Node, error) {
+	var ctx SourceContext
+	if f == nil {
+		f = ctx.AddFile("", -1)
 	}
-	f := ctx.AddFile(filename, length)
-	return ParseFile(r, f)
-}
 
-// Same as Parse, except it takes source file created by SourceContext.AddFile
-// directly. It's here for advanced purposes such as parallel parsing. You can
-// add multiple files to the source context at once and then parse these files
-// in parallel. However, keep in mind that all the lengths of the streams
-// must be known ahead of time.
-func ParseFile(r io.Reader, f *SourceFile) (*Node, error) {
 	var p parser
-
-	// avoid unnecessary double buffering
-	if br, ok := r.(*bufio.Reader); ok {
-		p.r = br
-	} else {
-		p.r = bufio.NewReader(r)
-	}
-
+	p.r = r
 	p.f = f
 	p.line = 1
 	p.last_seq = seq{offset: -1}
 	p.expect_eof = true
 	return p.parse()
+}
+
+// Parses a single S-expression node from a stream.
+//
+// Returns just one node, be it a value or a list, doesn't touch the rest of
+// the data. In case of a syntax error, the returned error is not nil.
+//
+// Note that unlike Parse it requires io.RuneScanner. It's a technical
+// requirement, because in some cases s-expressions syntax delimiter is not
+// part of the s-expression value, like in a very simple example: "x y". "x"
+// here will be returned as a value Node, but " y" should remain untouched,
+// however without reading the space character we can't tell if this is the end
+// of "x" or not. Hence the requirement of being able to unread one rune.
+func ParseOne(r io.RuneScanner, f *SourceFile) (*Node, error) {
+	var ctx SourceContext
+	if f == nil {
+		f = ctx.AddFile("", -1)
+	}
+
+	var p parser
+	p.r = r
+	p.rs = r
+	p.f = f
+	p.line = 1
+	p.last_seq = seq{offset: -1}
+	p.expect_eof = true
+	return p.parse_one_node()
 }
 
 // This error structure is Parse* functions family specific, it returns information
@@ -119,7 +116,8 @@ type delim_state struct {
 }
 
 type parser struct {
-	r      *bufio.Reader
+	r      io.RuneReader
+	rs     io.RuneScanner
 	f      *SourceFile
 	buf    bytes.Buffer
 	line   int
@@ -443,4 +441,31 @@ func (p *parser) parse() (root *Node, err error) {
 		lastchild = node
 	}
 	panic("unreachable")
+}
+
+func (p *parser) parse_one_node() (node *Node, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			p.f.Finalize(p.offset)
+			if e == io.EOF {
+				return
+			}
+			if sexperr, ok := e.(*ParseError); ok {
+				node = nil
+				err = sexperr
+				return
+			}
+			panic(e)
+		}
+	}()
+
+	p.next()
+	p.skip_spaces()
+	node = p.parse_node()
+	if node == nil {
+		p.error(p.f.Encode(p.offset),
+			"unexpected ')' at the top level")
+	}
+	err = p.rs.UnreadRune()
+	return
 }

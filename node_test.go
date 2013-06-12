@@ -26,7 +26,7 @@ func error_must_contain(t *testing.T, err error, what string) {
 }
 
 func test_unmarshal_generic(t *testing.T, data string, f func(*Node, ...interface{}) error, v ...interface{}) {
-	root, err := Parse(strings.NewReader(data), "", -1, nil)
+	root, err := Parse(strings.NewReader(data), nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -115,7 +115,7 @@ func TestUnmarshal(t *testing.T) {
 }
 
 func test_unmarshal_error(t *testing.T, source, what string, args ...interface{}) {
-	ast, err := Parse(strings.NewReader(source), "", -1, nil)
+	ast, err := Parse(strings.NewReader(source), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -166,7 +166,7 @@ func TestUnmarshalErrors(t *testing.T) {
 }
 
 func TestNodeNth(t *testing.T) {
-	root, err := Parse(strings.NewReader("0 1 2 3"), "", -1, nil)
+	root, err := Parse(strings.NewReader("0 1 2 3"), nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -208,7 +208,7 @@ func TestNodeIterKeyValues(t *testing.T) {
 		(
 			not-a-list
 		)
-	`), "", -1, nil)
+	`), nil)
 	if err != nil {
 		t.Error(err)
 		return
