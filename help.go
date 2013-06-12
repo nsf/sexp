@@ -126,6 +126,13 @@ func (h Helper) String() (string, error) {
 	return v, nil
 }
 
+func (h Helper) Node() (*Node, error) {
+	if h.node == nil {
+		return nil, h.err
+	}
+	return h.node, nil
+}
+
 func (h Helper) MustBool() bool {
 	v, err := h.Bool()
 	if err != nil {
@@ -152,6 +159,14 @@ func (h Helper) MustFloat64() float64 {
 
 func (h Helper) MustString() string {
 	v, err := h.String()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func (h Helper) MustNode() *Node {
+	v, err := h.Node()
 	if err != nil {
 		panic(err)
 	}
