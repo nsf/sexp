@@ -21,6 +21,10 @@ type Helper struct {
 }
 
 func Help(node *Node) Helper {
+	if node == nil {
+		err := NewUnmarshalError(nil, nil, "nil node")
+		return Helper{nil, err}
+	}
 	return Helper{node, nil}
 }
 
